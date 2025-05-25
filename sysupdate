@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# Script to update and upgrade a Debian system using apt-get
+# with detailed output, package counts, and confirmation before upgrading
+
+# Check if the script is run as root
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root.  Use sudo or run as root user."
+  exit 1
+fi
+
+# Update apt-get package lists
+echo "Updating apt-get package lists..."
+apt-get update | tee update.log  # Capt-geture output to file for analysis
+
+# Check for errors during update
+if [ $? -ne 0 ]; then
+  echo "Error updating package lists.  Exiting."
+  exit 1
+fi
+
+# Count number of packages that can be upgraded
+upgradable_packages=$(apt list --upgradable 2>/dev/null | grep -c 'upgradable')
+
+if [[ "$upgradable_packages" -gt 0 ]]; then
+  echo "apt-get Update Complete. Found $upgradable_packages packages that can be upgraded."
+else
+  echo "apt-get Update Complete. No packages need to be upgraded at this time."
+  exit 0 # No upgrades needed, so exit.
+fi
+
+# List upgradable packages
+echo "Listing upgradable packages..."
+apt list --upgradable
+
+# Ask for confirmation before upgrading
+read -p "Do you want to proceed with the upgrade? (y/n): " proceed
+
+if [[ "$proceed" != "y" && "$proceed" != "Y" ]]; then
+  echo "Upgrade cancelled."
+  exit 0
+fi
+
+# Upgrade installed packages
+echo "Upgrading installed packages..."
+apt-get upgrade -y | tee upgrade.log
+
+# Check for errors during upgrade
+if [ $? -ne 0 ]; then
+  echo "Error upgrading packages.  Continuing to dist-upgrade."
+fi
+
+# Perform a full distribution upgrade (dist-upgrade)
+echo "Performing distribution upgrade..."
+apt-get dist-upgrade -y | tee dist-upgrade.log
+
+# Check for errors during dist-upgrade
+if [ $? -ne 0 ]; then
+  echo "Error performing distribution upgrade.  Exiting."
+  exit 1
+fi
+
+# Autoremove obsolete packages
+echo "Removing obsolete packages..."
+apt-get autoremove -y | tee autoremove.log
+
+# Check for errors during autoremove
+if [ $? -ne 0 ]; then
+  echo "Error removing obsolete packages."
+fi
+
+# Clean up apt-get cache
+echo "Cleaning up apt-get cache..."
+apt-get clean | tee clean.log
+
+# Check for errors during clean
+if [ $? -ne 0 ]; then
+  echo "Error cleaning apt-get cache."
+fi
+
+echo "Update and upgrade complete."
+exit 0
